@@ -1,0 +1,67 @@
+SAMPLE_COMPANIES = {
+    "贵州茅台": {
+        "stock_code": "600519",
+        "aliases": ["茅台", "贵州茅台", "600519"],
+        "financial_metrics": {
+            "revenue": "约 1,505.60 亿元",
+            "net_profit": "约 747.34 亿元",
+            "operating_cash_flow": "约 665.93 亿元",
+            "revenue_yoy": "约 18%",
+            "net_profit_yoy": "约 19%",
+        },
+        "cash_flow_summary": "经营活动现金流保持高位，现金回款能力强，账面资金充足。",
+        "management_outlook": "公司将持续推进主营业务稳健发展，强化品牌、渠道和产品结构建设，保持高质量经营。",
+    },
+    "宁德时代": {
+        "stock_code": "300750",
+        "aliases": ["宁德时代", "宁德", "300750"],
+        "financial_metrics": {
+            "revenue": "约 4,009.17 亿元",
+            "net_profit": "约 441.21 亿元",
+            "operating_cash_flow": "约 928.26 亿元",
+            "revenue_yoy": "约 22%",
+            "net_profit_yoy": "约 44%",
+        },
+        "cash_flow_summary": "经营现金流明显好于利润规模，说明主营业务回款和供应链管理能力较强。",
+        "management_outlook": "公司将继续围绕动力电池和储能市场，加大技术创新和全球化布局。",
+    },
+    "中国平安": {
+        "stock_code": "601318",
+        "aliases": ["中国平安", "平安", "601318"],
+        "financial_metrics": {
+            "revenue": "约 9,139.83 亿元",
+            "net_profit": "约 856.65 亿元",
+            "operating_cash_flow": "约 1,100 亿元",
+            "revenue_yoy": "温和波动",
+            "net_profit_yoy": "有所恢复",
+        },
+        "cash_flow_summary": "保险主业仍能贡献较大现金流，但资产端波动会影响短期表现。",
+        "management_outlook": "公司将推进综合金融和医疗养老生态建设，提升寿险改革成效。",
+    },
+    "招商银行": {
+        "stock_code": "600036",
+        "aliases": ["招商银行", "招行", "600036"],
+        "financial_metrics": {
+            "revenue": "约 3,391.23 亿元",
+            "net_profit": "约 1,466.02 亿元",
+            "operating_cash_flow": "银行口径波动较大",
+            "revenue_yoy": "小幅承压",
+            "net_profit_yoy": "基本稳健",
+        },
+        "cash_flow_summary": "银行现金流口径和普通制造企业不同，更应关注盈利质量、资产质量和拨备水平。",
+        "management_outlook": "公司将保持稳健经营，继续推进财富管理、零售金融和风险控制。",
+    },
+    "比亚迪": {
+        "stock_code": "002594",
+        "aliases": ["比亚迪", "BYD", "002594"],
+        "financial_metrics": {
+            "revenue": "约 6,023.15 亿元",
+            "net_profit": "约 300.41 亿元",
+            "operating_cash_flow": "约 1,696.24 亿元",
+            "revenue_yoy": "约 42%",
+            "net_profit_yoy": "约 81%",
+        },
+        "cash_flow_summary": "销售规模扩张带来较强现金流，但汽车行业竞争也会压缩利润空间。",
+        "management_outlook": "公司将继续推进新能源汽车、出海和技术平台建设。",
+    },
+}
