@@ -5,6 +5,7 @@ import os
 import re
 from typing import Any
 
+from src.net_utils import is_proxy_error, temporary_disable_proxy
 from src.models import AnalysisResult, Scores
 
 
@@ -237,22 +238,31 @@ def _build_user_prompt(snapshot: dict[str, Any], user_question: str) -> str:
 
 
 def _call_openai(client: Any, model: str, messages: list[dict[str, str]]) -> str:
+    def _request() -> str:
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.35,
+                response_format={"type": "json_object"},
+            )
+        except Exception as exc:
+            if "response_format" not in str(exc):
+                raise
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=0.35,
+            )
+        return response.choices[0].message.content or "{}"
+
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.35,
-            response_format={"type": "json_object"},
-        )
+        return _request()
     except Exception as exc:
-        if "response_format" not in str(exc):
+        if not is_proxy_error(exc):
             raise
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=0.35,
-        )
-    return response.choices[0].message.content or "{}"
+        with temporary_disable_proxy():
+            return _request()
 
 
 def analyze_company(snapshot: dict[str, Any], user_question: str) -> AnalysisResult:

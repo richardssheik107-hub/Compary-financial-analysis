@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.net_utils import is_proxy_error, temporary_disable_proxy
 from src.sample_data import SAMPLE_COMPANIES
 
 
@@ -205,6 +206,16 @@ def _fetch_akshare_metrics(stock_code: str) -> dict[str, Any]:
     return {key: value for key, value in metrics.items() if value}
 
 
+def _fetch_akshare_metrics_with_retry(stock_code: str) -> dict[str, Any]:
+    try:
+        return _fetch_akshare_metrics(stock_code)
+    except Exception as exc:
+        if not is_proxy_error(exc):
+            raise
+        with temporary_disable_proxy():
+            return _fetch_akshare_metrics(stock_code)
+
+
 @lru_cache(maxsize=256)
 def _fetch_akshare_daily_prices(stock_code: str) -> tuple[dict[str, Any], ...]:
     import akshare as ak
@@ -282,6 +293,16 @@ def _fetch_akshare_daily_prices(stock_code: str) -> tuple[dict[str, Any], ...]:
     return tuple(records.to_dict(orient="records"))
 
 
+def _fetch_akshare_daily_prices_with_retry(stock_code: str) -> tuple[dict[str, Any], ...]:
+    try:
+        return _fetch_akshare_daily_prices(stock_code)
+    except Exception as exc:
+        if not is_proxy_error(exc):
+            raise
+        with temporary_disable_proxy():
+            return _fetch_akshare_daily_prices(stock_code)
+
+
 def build_company_snapshot(user_query: str) -> dict[str, Any]:
     resolved = identify_company(user_query)
     if not resolved["found"]:
@@ -319,7 +340,7 @@ def build_company_snapshot(user_query: str) -> dict[str, Any]:
     price_warning = ""
 
     try:
-        live_metrics = _fetch_akshare_metrics(stock_code)
+        live_metrics = _fetch_akshare_metrics_with_retry(stock_code)
         if live_metrics:
             financial_metrics.update(live_metrics)
             data_source = "akshare+sample" if sample else "akshare"
@@ -329,7 +350,7 @@ def build_company_snapshot(user_query: str) -> dict[str, Any]:
         data_warning = f"AKShare 数据获取失败，已使用可用兜底数据：{exc}"
 
     try:
-        daily_prices = _fetch_akshare_daily_prices(stock_code)
+        daily_prices = _fetch_akshare_daily_prices_with_retry(stock_code)
         if not daily_prices:
             price_warning = "暂未获取到近期日线行情。"
     except Exception as exc:
