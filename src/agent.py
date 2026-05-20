@@ -30,14 +30,14 @@ def _build_registry() -> ToolRegistry:
 
 
 def _detect_intent(query: str) -> str:
-    normalized = query.strip()
+    normalized = (query or "").strip().lower()
     if not normalized:
         return "未提供问题"
-    if any(keyword in normalized for keyword in ["对比", "比较", "谁更好"]):
+    if any(k in normalized for k in ["对比", "比较", "谁更好", "哪个好", "哪个更好", "vs", "versus"]):
         return "财报对比"
-    if any(keyword in normalized for keyword in ["风险", "亏损", "压力"]):
+    if any(k in normalized for k in ["风险", "亏损", "压力", "恶化", "下滑"]):
         return "风险分析"
-    if any(keyword in normalized for keyword in ["现金流", "赚不赚钱", "利润", "营收"]):
+    if any(k in normalized for k in ["现金流", "利润", "营收", "收入", "财报"]):
         return "财报解读"
     return "通用财报问答"
 
@@ -45,7 +45,8 @@ def _detect_intent(query: str) -> str:
 def _has_explicit_target(query: str) -> bool:
     if re.search(r"\b\d{6}\b", query):
         return True
-    return any(token in query for token in ["茅台", "宁德", "平安银行", "万科", "格力", "比亚迪", "招商银行"])
+    common_names = ["茅台", "宁德", "平安银行", "招商银行", "比亚迪", "万科", "格力"]
+    return any(name in query for name in common_names)
 
 
 def _apply_context_to_query(query: str, context_company_name: str, context_stock_code: str) -> tuple[str, bool]:
@@ -56,15 +57,59 @@ def _apply_context_to_query(query: str, context_company_name: str, context_stock
         return normalized, False
     if _has_explicit_target(normalized):
         return normalized, False
+
     followup_signals = ["它", "这家公司", "这家", "上一家", "刚才这家", "继续", "再看", "进一步", "那它"]
-    if any(signal in normalized for signal in followup_signals):
-        target = context_company_name or context_stock_code
-        return f"{target}，{normalized}", True
-    generic_question_signals = ["怎么看", "如何", "风险", "利润", "现金流", "营收", "增速", "估值", "还能"]
-    if len(normalized) <= 28 or any(signal in normalized for signal in generic_question_signals):
+    generic_signals = ["怎么看", "如何", "风险", "利润", "现金流", "营收", "增速", "估值", "还能"]
+    if any(s in normalized for s in followup_signals) or len(normalized) <= 28 or any(s in normalized for s in generic_signals):
         target = context_company_name or context_stock_code
         return f"{target}，{normalized}", True
     return normalized, False
+
+
+def _extract_compare_targets(query: str) -> list[str]:
+    code_hits = re.findall(r"\b\d{6}\b", query)
+    if len(code_hits) >= 2:
+        unique_codes: list[str] = []
+        for code in code_hits:
+            if code not in unique_codes:
+                unique_codes.append(code)
+        return unique_codes[:4]
+
+    cleaned = re.sub(r"[，。？！,.!?]", " ", query)
+    cleaned = re.sub(r"(帮我|看看|最近|怎么样|未来|财报|分析|一下子|一下|请问)", " ", cleaned)
+    parts = re.split(r"(?:对比|比较|谁更好|哪个好|哪个更好|和|与|vs|VS)", cleaned)
+    candidates = [p.strip() for p in parts if p and p.strip()]
+    unique: list[str] = []
+    for item in candidates:
+        if item not in unique and len(item) <= 20:
+            unique.append(item)
+    return unique[:4]
+
+
+def _looks_like_compare_query(query: str) -> bool:
+    normalized = (query or "").lower()
+    if len(re.findall(r"\b\d{6}\b", normalized)) >= 2:
+        return True
+    if any(k in normalized for k in ["对比", "比较", "谁更好", "哪个好", "哪个更好", "vs", "versus"]):
+        return True
+    # 常见口语：公司A和公司B（不写“对比”）
+    if "和" in normalized or "与" in normalized:
+        targets = _extract_compare_targets(query)
+        return len(targets) >= 2
+    return False
+
+
+def _to_float_metric(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).replace("亿元", "").replace("%", "").replace(",", "").strip()
+    match = re.search(r"-?\d+(?:\.\d+)?", text)
+    if not match:
+        return None
+    try:
+        return float(match.group(0))
+    except ValueError:
+        return None
 
 
 def _evaluate_output(snapshot: dict[str, Any], analysis: Any) -> EvaluationResult | None:
@@ -105,72 +150,24 @@ def _evaluate_output(snapshot: dict[str, Any], analysis: Any) -> EvaluationResul
     )
 
 
-def _extract_compare_targets(query: str) -> list[str]:
-    cleaned = re.sub(r"[，。？！,.!?]", " ", query)
-    cleaned = re.sub(r"(帮我|看看|最近|怎么样|未来|财报|分析|一下|请|一下子)", " ", cleaned)
-    parts = re.split(r"(?:对比|比较|谁更好|和|与|跟|vs|VS)", cleaned)
-    candidates = [part.strip() for part in parts if part and part.strip()]
-    unique: list[str] = []
-    for candidate in candidates:
-        if candidate not in unique:
-            unique.append(candidate)
-    return unique[:4]
-
-
-def _to_float_metric(value: Any) -> float | None:
-    if value is None:
-        return None
-    text = str(value).replace("约", "").replace("亿元", "").replace("%", "").replace(",", "").strip()
-    match = re.search(r"-?\d+(?:\.\d+)?", text)
-    if not match:
-        return None
-    try:
-        return float(match.group(0))
-    except ValueError:
-        return None
-
-
 def _build_compare_summary(snapshot_a: dict[str, Any], snapshot_b: dict[str, Any], analysis_a: Any, analysis_b: Any) -> dict[str, Any]:
     metrics_a = snapshot_a.get("financial_metrics", {})
     metrics_b = snapshot_b.get("financial_metrics", {})
     score_a = round((analysis_a.scores.profitability + analysis_a.scores.cash_saving + analysis_a.scores.future_potential) / 3, 2)
     score_b = round((analysis_b.scores.profitability + analysis_b.scores.cash_saving + analysis_b.scores.future_potential) / 3, 2)
-    revenue_yoy_a = _to_float_metric(metrics_a.get("revenue_yoy"))
-    revenue_yoy_b = _to_float_metric(metrics_b.get("revenue_yoy"))
-    profit_yoy_a = _to_float_metric(metrics_a.get("net_profit_yoy"))
-    profit_yoy_b = _to_float_metric(metrics_b.get("net_profit_yoy"))
 
     winner = snapshot_a.get("company_name", "公司A")
     reason = "综合评分更高"
     if score_b > score_a:
         winner = snapshot_b.get("company_name", "公司B")
-    if revenue_yoy_a is not None and revenue_yoy_b is not None and profit_yoy_a is not None and profit_yoy_b is not None:
-        growth_a = revenue_yoy_a + profit_yoy_a
-        growth_b = revenue_yoy_b + profit_yoy_b
-        if growth_b > growth_a:
-            winner = snapshot_b.get("company_name", "公司B")
-            reason = "营收和利润增速合计更强"
-        elif growth_a > growth_b:
-            winner = snapshot_a.get("company_name", "公司A")
-            reason = "营收和利润增速合计更强"
-
-    confidence_score = 82
-    limitations: list[str] = []
-    if snapshot_a.get("data_source", "").startswith("sample") or snapshot_b.get("data_source", "").startswith("sample"):
-        confidence_score -= 12
-        limitations.append("部分指标来自样例兜底，真实度低于全量实时财务摘要。")
-    if metrics_a.get("report_period") != metrics_b.get("report_period"):
-        confidence_score -= 8
-        limitations.append("两家公司报告期可能不一致，对比结论需结合同口径时间窗口复核。")
-    if snapshot_a.get("price_warning") or snapshot_b.get("price_warning"):
-        confidence_score -= 5
-        limitations.append("近期行情数据不完整，价格趋势维度仅供参考。")
-    confidence_score = max(40, min(95, confidence_score))
-    followups = [
-        f"继续对比 {snapshot_a.get('company_name', '公司A')} 和 {snapshot_b.get('company_name', '公司B')} 的毛利率与净利率变化。",
-        "补充查看最近两期财报，确认营收增长是否伴随现金流同步改善。",
-        "针对领先公司继续追问：增长持续性最大的风险来自哪里。",
-    ]
+    a_growth = (_to_float_metric(metrics_a.get("revenue_yoy")) or 0) + (_to_float_metric(metrics_a.get("net_profit_yoy")) or 0)
+    b_growth = (_to_float_metric(metrics_b.get("revenue_yoy")) or 0) + (_to_float_metric(metrics_b.get("net_profit_yoy")) or 0)
+    if b_growth > a_growth:
+        winner = snapshot_b.get("company_name", "公司B")
+        reason = "营收和利润增速合计更强"
+    elif a_growth > b_growth:
+        winner = snapshot_a.get("company_name", "公司A")
+        reason = "营收和利润增速合计更强"
 
     return {
         "is_compare": True,
@@ -179,9 +176,13 @@ def _build_compare_summary(snapshot_a: dict[str, Any], snapshot_b: dict[str, Any
         "winner": winner,
         "winner_reason": reason,
         "industry_context": "当前结论主要基于财报核心指标与 AI 解读，不等同于完整行业景气度或估值判断。",
-        "confidence_score": confidence_score,
-        "limitations": limitations,
-        "followups": followups,
+        "confidence_score": 82,
+        "limitations": [],
+        "followups": [
+            f"继续对比 {snapshot_a.get('company_name', '公司A')} 和 {snapshot_b.get('company_name', '公司B')} 的毛利率与净利率变化。",
+            "补充看最近两期财报，确认营收增长是否伴随现金流同步改善。",
+            "针对领先公司继续追问：增长持续性的最大风险来自哪里？",
+        ],
         "rows": [
             {"metric": "营收同比", "a": str(metrics_a.get("revenue_yoy", "暂无")), "b": str(metrics_b.get("revenue_yoy", "暂无"))},
             {"metric": "净利润同比", "a": str(metrics_a.get("net_profit_yoy", "暂无")), "b": str(metrics_b.get("net_profit_yoy", "暂无"))},
@@ -203,7 +204,7 @@ def _build_general_followups(intent: str, snapshot: dict[str, Any], analysis: An
         return [
             f"继续分析 {company} 最近两期财报里利润和现金流是否同步改善。",
             f"请解释 {company} 当前最大的经营风险来自哪里，以及如何跟踪。",
-            f"把 {company} 和同业龙头做一版核心指标对比。",
+            f"把 {company} 和同行龙头做一版核心指标对比。",
         ]
     if analysis is not None:
         return [
@@ -213,11 +214,19 @@ def _build_general_followups(intent: str, snapshot: dict[str, Any], analysis: An
     return []
 
 
-def run_financial_agent(query: str, *, resolved_query: str | None = None, context_company_name: str = "", context_stock_code: str = "", context_used: bool = False) -> AgentResult:
+def run_financial_agent(
+    query: str,
+    *,
+    resolved_query: str | None = None,
+    context_company_name: str = "",
+    context_stock_code: str = "",
+    context_used: bool = False,
+) -> AgentResult:
     registry = _build_registry()
     steps: list[AgentStep] = []
     tool_calls: list[ToolCallResult] = []
     warnings: list[str] = []
+
     if resolved_query:
         effective_query = resolved_query
     else:
@@ -225,7 +234,7 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
         context_used = context_used or auto_context_used
     intent = _detect_intent(effective_query)
 
-    if not query.strip():
+    if not (query or "").strip():
         steps.append(AgentStep(step_name="输入校验", status="failed", summary="未提供有效问题", tool_name="validate_query", error="empty_query"))
         return AgentResult(
             query=query,
@@ -247,7 +256,7 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
 
     steps.append(AgentStep(step_name="意图识别", status="success", summary=f"识别为：{intent}", tool_name="detect_intent"))
 
-    if intent == "财报对比":
+    if intent == "财报对比" or _looks_like_compare_query(effective_query):
         targets = _extract_compare_targets(effective_query)
         snapshots: list[dict[str, Any]] = []
         analyses: list[Any] = []
@@ -263,27 +272,12 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
             )
             if snapshot.get("found"):
                 snapshots.append(snapshot)
-                steps.append(
-                    AgentStep(
-                        step_name="对比目标识别",
-                        status="success",
-                        summary=f"已识别目标：{snapshot.get('company_name')} ({snapshot.get('stock_code')})",
-                        tool_name="build_company_snapshot",
-                    )
-                )
+                steps.append(AgentStep(step_name="对比目标识别", status="success", summary=f"已识别：{snapshot.get('company_name')} ({snapshot.get('stock_code')})", tool_name="build_company_snapshot"))
             if len(snapshots) == 2:
                 break
 
         if len(snapshots) < 2:
-            steps.append(
-                AgentStep(
-                    step_name="对比分析",
-                    status="failed",
-                    summary="未能识别两个有效公司，无法生成对比结果",
-                    tool_name="build_company_snapshot",
-                    error="compare_targets_not_enough",
-                )
-            )
+            steps.append(AgentStep(step_name="对比分析", status="failed", summary="未识别到两个有效公司，无法生成对比结果", tool_name="build_company_snapshot", error="compare_targets_not_enough"))
             warnings.append("对比问题需要两个可识别的 A 股公司，例如：宁德时代和比亚迪谁更好。")
             return AgentResult(
                 query=query,
@@ -297,10 +291,7 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
                 data_quality={},
                 evaluation=None,
                 comparison=None,
-                suggested_questions=[
-                    "试试：宁德时代和比亚迪谁更好？",
-                    "试试：平安银行和招商银行谁的增长质量更稳？",
-                ],
+                suggested_questions=["试试：宁德时代和比亚迪谁更好？", "试试：平安银行和招商银行哪个更稳？"],
                 context_used=context_used,
                 context_company_name=context_company_name,
                 context_stock_code=context_stock_code,
@@ -310,17 +301,9 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
             analysis = registry.call("analyze_company", snapshot, effective_query)
             analyses.append(analysis)
             tool_calls.append(ToolCallResult(tool_name="analyze_company", success=True, summary=f"{snapshot.get('company_name')} -> {analysis.ai_status}"))
+        steps.append(AgentStep(step_name="对比结论生成", status="success", summary=f"已完成 {snapshots[0].get('company_name')} 与 {snapshots[1].get('company_name')} 对比", tool_name="compare_synthesizer"))
 
-        steps.append(
-            AgentStep(
-                step_name="对比结论生成",
-                status="success",
-                summary=f"已完成 {snapshots[0].get('company_name')} 与 {snapshots[1].get('company_name')} 对比",
-                tool_name="compare_synthesizer",
-            )
-        )
         comparison = _build_compare_summary(snapshots[0], snapshots[1], analyses[0], analyses[1])
-        # Keep single-company rendering path compatible by returning company A's snapshot/analysis.
         evaluation = _evaluate_output(snapshots[0], analyses[0])
         return AgentResult(
             query=query,
@@ -350,107 +333,73 @@ def run_financial_agent(query: str, *, resolved_query: str | None = None, contex
         )
     )
     if snapshot.get("found"):
-        company = f"{snapshot.get('company_name', '未知公司')} ({snapshot.get('stock_code', '-')})"
-        steps.append(AgentStep(step_name="公司识别与数据抓取", status="success", summary=f"已识别目标：{company}", tool_name="build_company_snapshot"))
-    else:
-        steps.append(
-            AgentStep(
-                step_name="公司识别与数据抓取",
-                status="failed",
-                summary="未识别到有效 A 股公司",
-                tool_name="build_company_snapshot",
-                error=snapshot.get("data_warning", "not_found"),
-            )
-        )
-        # General-question mode: if no company was detected, still return a useful educational answer.
-        analysis = registry.call("analyze_general_question", effective_query)
-        tool_calls.append(
-            ToolCallResult(
-                tool_name="analyze_general_question",
-                success=True,
-                summary=analysis.ai_status,
-                error="",
-            )
-        )
-        steps.append(
-            AgentStep(
-                step_name="通用问题解读",
-                status="success",
-                summary="未识别到具体公司，已切换为通用问题模式",
-                tool_name="analyze_general_question",
-            )
-        )
-        warnings.append("未识别到具体公司，当前输出为通用财报解读建议。可补充公司名或代码获得更精准结果。")
-        general_snapshot = {
-            "found": True,
-            "company_name": "通用问题模式",
-            "stock_code": "N/A",
-            "data_source": "general_guidance",
-            "data_warning": "",
-            "data_quality": {"live_metric_count": 0, "fallback_enabled": True, "report_period": "general"},
-            "financial_metrics": {
-                "report_period": "通用方法论",
-                "revenue": "请补充具体公司",
-                "net_profit": "请补充具体公司",
-                "operating_cash_flow": "请补充具体公司",
-                "revenue_yoy": "请补充具体公司",
-                "net_profit_yoy": "请补充具体公司",
-            },
-            "cash_flow_summary": "当前为通用问题模式，未绑定具体公司财务数据。",
-            "management_outlook": "请补充行业或公司，以便给出更精准展望。",
-            "daily_prices": [],
-            "price_warning": "通用问题模式不展示个股日线走势。",
-            "candidates": snapshot.get("candidates", []),
-        }
-        evaluation = _evaluate_output(general_snapshot, analysis)
+        steps.append(AgentStep(step_name="公司识别与数据抓取", status="success", summary=f"已识别目标：{snapshot.get('company_name')} ({snapshot.get('stock_code')})", tool_name="build_company_snapshot"))
+        analysis = registry.call("analyze_company", snapshot, effective_query)
+        tool_calls.append(ToolCallResult(tool_name="analyze_company", success=True, summary=analysis.ai_status))
+        steps.append(AgentStep(step_name="财报解读生成", status="success", summary=f"解读完成：{analysis.ai_status}", tool_name="analyze_company"))
+        if snapshot.get("data_warning"):
+            warnings.append(snapshot["data_warning"])
+        if snapshot.get("price_warning"):
+            warnings.append(snapshot["price_warning"])
+        evaluation = _evaluate_output(snapshot, analysis)
         return AgentResult(
             query=query,
             resolved_query=effective_query,
-            intent="通用财报问答",
+            intent=intent,
             steps=steps,
             tool_calls=tool_calls,
             analysis=analysis,
-            snapshot=general_snapshot,
+            snapshot=snapshot,
             warnings=warnings,
-            data_quality=general_snapshot.get("data_quality", {}),
+            data_quality=snapshot.get("data_quality", {}),
             evaluation=evaluation,
             comparison=None,
-            suggested_questions=_build_general_followups("通用财报问答", general_snapshot, analysis),
+            suggested_questions=_build_general_followups(intent, snapshot, analysis),
             context_used=context_used,
             context_company_name=context_company_name,
             context_stock_code=context_stock_code,
         )
 
-    analysis = registry.call("analyze_company", snapshot, effective_query)
-    tool_calls.append(
-        ToolCallResult(
-            tool_name="analyze_company",
-            success=True,
-            summary=analysis.ai_status,
-            error="",
-        )
-    )
-    steps.append(AgentStep(step_name="财报解读生成", status="success", summary=f"解读完成：{analysis.ai_status}", tool_name="analyze_company"))
-
-    if snapshot.get("data_warning"):
-        warnings.append(snapshot["data_warning"])
-    if snapshot.get("price_warning"):
-        warnings.append(snapshot["price_warning"])
-    evaluation = _evaluate_output(snapshot, analysis)
-
+    steps.append(AgentStep(step_name="公司识别与数据抓取", status="failed", summary="未识别到有效 A 股公司", tool_name="build_company_snapshot", error=snapshot.get("data_warning", "not_found")))
+    analysis = registry.call("analyze_general_question", effective_query)
+    tool_calls.append(ToolCallResult(tool_name="analyze_general_question", success=True, summary=analysis.ai_status))
+    steps.append(AgentStep(step_name="通用问题解读", status="success", summary="未识别到具体公司，已切换为通用问题模式", tool_name="analyze_general_question"))
+    warnings.append("未识别到具体公司，当前输出为通用财报解读建议。可补充公司名或代码获得更精准结果。")
+    general_snapshot = {
+        "found": True,
+        "company_name": "通用问题模式",
+        "stock_code": "N/A",
+        "data_source": "general_guidance",
+        "data_warning": "",
+        "data_quality": {"live_metric_count": 0, "fallback_enabled": True, "report_period": "general"},
+        "financial_metrics": {
+            "report_period": "通用方法论",
+            "revenue": "请补充具体公司",
+            "net_profit": "请补充具体公司",
+            "operating_cash_flow": "请补充具体公司",
+            "revenue_yoy": "请补充具体公司",
+            "net_profit_yoy": "请补充具体公司",
+        },
+        "cash_flow_summary": "当前为通用问题模式，未绑定具体公司财务数据。",
+        "management_outlook": "请补充行业或公司，以便给出更精准展望。",
+        "daily_prices": [],
+        "price_warning": "通用问题模式不展示个股日线走势。",
+        "candidates": snapshot.get("candidates", []),
+    }
+    evaluation = _evaluate_output(general_snapshot, analysis)
     return AgentResult(
         query=query,
         resolved_query=effective_query,
-        intent=intent,
+        intent="通用财报问答",
         steps=steps,
         tool_calls=tool_calls,
         analysis=analysis,
-        snapshot=snapshot,
+        snapshot=general_snapshot,
         warnings=warnings,
-        data_quality=snapshot.get("data_quality", {}),
+        data_quality=general_snapshot.get("data_quality", {}),
         evaluation=evaluation,
         comparison=None,
-        suggested_questions=_build_general_followups(intent, snapshot, analysis),
+        suggested_questions=_build_general_followups("通用财报问答", general_snapshot, analysis),
         context_used=context_used,
         context_company_name=context_company_name,
         context_stock_code=context_stock_code,
