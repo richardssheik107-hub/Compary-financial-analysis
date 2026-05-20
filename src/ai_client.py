@@ -9,6 +9,25 @@ from src.net_utils import is_proxy_error, temporary_disable_proxy
 from src.models import AnalysisResult, Scores
 
 
+def analyze_general_question(user_question: str) -> AnalysisResult:
+    question = (user_question or "").strip() or "财报怎么看"
+    return AnalysisResult(
+        plain_cashflow_summary=(
+            f"你这个问题（{question}）如果不绑定具体公司，可以先按一个顺序看："
+            "先看收入是否持续增长，再看净利润是否和收入同方向变化，最后看经营现金流是否能跟上利润。"
+            "如果利润在涨但现金流跟不上，通常要更谨慎。"
+        ),
+        future_outlook=(
+            "下一步建议你补充一个具体公司名称或6位股票代码。"
+            "这样我可以把同样的方法落到真实财报数据上，给出更有针对性的解释和风险提示。"
+        ),
+        scores=Scores(profitability=7.0, cash_saving=7.0, future_potential=6.5),
+        sentiment_label="中性偏稳",
+        risk_notes="股票投资有风险，不构成投资建议。",
+        ai_status="通用问题模式",
+    )
+
+
 SYSTEM_PROMPT = """
 你是“大白话财报”的 AI 财报解读员，风格像一个接地气但非常谨慎的财经博主。
 

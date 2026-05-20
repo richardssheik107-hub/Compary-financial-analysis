@@ -5,7 +5,7 @@
 ## 已通过
 
 - Windows 本地虚拟环境 `.venv` 可安装 `requirements.txt`。
-- Streamlit 服务可在 `http://localhost:8501` 响应 HTTP 200。
+- Streamlit 服务可在 `http://localhost:8502` 响应 HTTP 200。
 - 页面可手动提交查询，不会打开页面就自动抓取数据。
 - 支持 A 股名称和 6 位股票代码识别。
 - 支持自然语言中夹带 6 位股票代码，例如“帮我看000001怎么样”。

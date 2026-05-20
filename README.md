@@ -6,7 +6,7 @@
 
 1. 复制 `.env.example` 为 `.env`，填写 `OPENAI_API_KEY`。
 2. 双击 `start.bat`。
-3. 浏览器打开 `http://localhost:8501`。
+3. 浏览器打开 `http://localhost:8502`。
 
 没有配置 API Key 时，应用不会崩溃，会展示本地演示解读并提示如何开启真实 AI 分析。
 

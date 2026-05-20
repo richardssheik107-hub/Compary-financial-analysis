@@ -4,6 +4,11 @@
 
 本项目是“大白话财报”，一个 Windows 本地运行的消费级智能投顾 AI 助手 MVP。核心目标是帮助普通用户用自然语言理解 A 股公司财报，不提供直接交易建议。
 
+## 当前工作目录
+
+- 绝对路径：`C:\Users\Fergeson\Desktop\company-financial-analysis-dabaihua-v1`
+- 启动前请确认 Codex 会话已绑定到该目录。
+
 ## 标准文件路径
 
 - 产品需求：`docs/requirements.md`
