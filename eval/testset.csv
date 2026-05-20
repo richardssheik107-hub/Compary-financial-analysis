@@ -1,0 +1,21 @@
+id,query,expected_intent,bucket
+1,贵州茅台,财报解读,single_company
+2,平安银行,财报解读,single_company
+3,600519,财报解读,single_company
+4,000001,财报解读,single_company
+5,宁德时代财报怎么看,财报解读,single_company
+6,比亚迪现金流怎么样,财报解读,single_company
+7,万科利润和现金流匹配吗,财报解读,single_company
+8,格力营收和利润趋势如何,财报解读,single_company
+9,贵州茅台和宁德时代谁更好,财报对比,compare
+10,平安银行和招商银行哪个更稳,财报对比,compare
+11,600519和300750谁更好,财报对比,compare
+12,000001 600036 对比,财报对比,compare
+13,比较比亚迪和宁德时代,财报对比,compare
+14,万科和格力哪个更好,财报对比,compare
+15,怎么看财报里的现金流,通用财报问答,general
+16,利润增长但现金流下降说明什么,通用财报问答,general
+17,新手先看哪三个财报指标,通用财报问答,general
+18,如何判断增长质量,通用财报问答,general
+19,营收和净利润背离意味着什么,通用财报问答,general
+20,为什么利润高但不一定有钱,通用财报问答,general
