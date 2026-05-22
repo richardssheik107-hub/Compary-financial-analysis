@@ -299,6 +299,22 @@ def _run_query(query: str) -> None:
         ).to_dict()
 
     snapshot = agent_result.snapshot or {}
+    is_general_mode = (
+        agent_result.intent == "通用财报问答"
+        or str(snapshot.get("company_name") or "") == "通用问题模式"
+        or str(snapshot.get("stock_code") or "") == "N/A"
+    )
+    if is_general_mode and agent_result.analysis is not None:
+        answer_text = str(agent_result.analysis.plain_cashflow_summary or "").strip()
+        if not answer_text:
+            answer_text = "当前问题已进入通用模式，但暂时没有可展示的答案。"
+        st.markdown('<p class="section-title">问题答案</p>', unsafe_allow_html=True)
+        st.markdown(
+            f'<div class="custom-card"><p class="card-body">{escape(answer_text)}</p></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     if agent_result.comparison:
         _render_compare_view(agent_result.comparison)
     elif snapshot.get("found") and agent_result.analysis is not None:
