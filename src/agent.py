@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+import unicodedata
 from typing import Any, Callable
 
 from src.ai_client import analyze_company, analyze_general_question
-from src.company_aliases import ALIAS_TO_CANONICAL
+from src.company_aliases import load_aliases
 from src.data_service import build_company_snapshot
 from src.models import AgentResult, AgentStep, EvaluationResult, ToolCallResult
 
@@ -31,18 +32,20 @@ def _build_registry() -> ToolRegistry:
 
 
 def _normalize_text(text: str) -> str:
-    return re.sub(r"\s+", "", (text or "").strip().lower())
+    normalized = unicodedata.normalize("NFKC", (text or "").strip().lower())
+    return re.sub(r"\s+", "", normalized)
 
 
 def _extract_company_mentions(query: str) -> list[str]:
     normalized = _normalize_text(query)
     mentions: list[str] = []
+    alias_to_canonical = load_aliases(force_reload=True)
 
     for code in re.findall(r"\b\d{6}\b", normalized):
         if code not in mentions:
             mentions.append(code)
 
-    for alias, canonical in sorted(ALIAS_TO_CANONICAL.items(), key=lambda x: len(x[0]), reverse=True):
+    for alias, canonical in sorted(alias_to_canonical.items(), key=lambda x: len(x[0]), reverse=True):
         if alias in normalized and canonical not in mentions:
             mentions.append(canonical)
     return mentions
