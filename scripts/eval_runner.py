@@ -3,12 +3,15 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-
-from src.agent import run_financial_agent
-
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from src.agent import run_financial_agent
 TESTSET = ROOT / "eval" / "testset.csv"
+FAILED_CASES = ROOT / "eval" / "failed_cases.csv"
 
 
 @dataclass
@@ -123,6 +126,25 @@ def main() -> None:
         print("\n--- top failures ---")
         for r in failures[:10]:
             print(f"[{r.case_id}] {r.query} -> {r.fail_reason}")
+
+    with FAILED_CASES.open("w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.DictWriter(
+            f,
+            fieldnames=["id", "bucket", "query", "expected_intent", "predicted_intent", "fail_reason"],
+        )
+        writer.writeheader()
+        for r in failures:
+            writer.writerow(
+                {
+                    "id": r.case_id,
+                    "bucket": r.bucket,
+                    "query": r.query,
+                    "expected_intent": r.expected_intent,
+                    "predicted_intent": r.predicted_intent,
+                    "fail_reason": r.fail_reason,
+                }
+            )
+    print(f"\nfailed_cases_saved: {FAILED_CASES}")
 
 
 if __name__ == "__main__":

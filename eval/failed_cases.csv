@@ -1,0 +1,4 @@
+﻿id,bucket,query,expected_intent,predicted_intent,fail_reason
+7,single_company,万科利润和现金流匹配吗,财报解读,通用财报问答,intent_mismatch:通用财报问答
+8,single_company,格力营收和利润趋势如何,财报解读,通用财报问答,intent_mismatch:通用财报问答
+14,compare,万科和格力哪个更好,财报对比,财报解读,intent_mismatch:财报解读
