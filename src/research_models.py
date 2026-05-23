@@ -50,6 +50,7 @@ class ResearchResult:
     source_summary: dict
     confidence_score: int
     limitations: list[str]
+    evidence_by_section: dict = field(default_factory=dict)
     key_metrics: dict = field(default_factory=dict)
     compare_metrics: list[dict] = field(default_factory=list)
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 from pathlib import Path
 import sys
 
@@ -50,8 +51,13 @@ def _text_quality_ok(result) -> bool:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Run research eval cases.")
+    parser.add_argument("--limit", type=int, default=0, help="Run only first N cases, 0 means all.")
+    args = parser.parse_args()
     load_dotenv(dotenv_path=ROOT / ".env")
     rows = list(csv.DictReader(TESTSET.open(encoding="utf-8-sig")))
+    if args.limit and args.limit > 0:
+        rows = rows[: args.limit]
     if not rows:
         print("No research eval cases found.")
         return 1

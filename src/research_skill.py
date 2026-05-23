@@ -5,11 +5,11 @@ import os
 from dataclasses import replace
 from typing import Any
 
-from src.research_models import ResearchResult, SourceNote
 from src.net_utils import is_proxy_error, temporary_disable_proxy
+from src.research_models import ResearchResult, SourceNote
 
 SKILL_PROMPT = """
-你是上市公司经营研究写作助手。你要把已有研究结论润色成更通顺、更有逻辑的中文。
+你是上市公司经营研究写作助手。你需要把已有研究结论润色成更通顺、更有逻辑的中文。
 约束：
 1) 不得输出买卖建议、目标价、仓位建议；
 2) 每段先结论，再证据，再限制；
@@ -63,6 +63,13 @@ def _sanitize(text: str) -> str:
     return output
 
 
+def _quality_gate_text(text: str) -> str:
+    value = _sanitize(text).replace("。。", "。").replace("，，", "，").strip()
+    if len(value) > 8 and not value.endswith(("。", "！", "？")):
+        value = f"{value}。"
+    return value
+
+
 def _as_text(value: Any, fallback: str) -> str:
     if value is None:
         return fallback
@@ -81,17 +88,21 @@ def _as_text(value: Any, fallback: str) -> str:
     return str(value)
 
 
-def _local_refine(result: ResearchResult) -> ResearchResult:
+def _quality_gate_result(result: ResearchResult) -> ResearchResult:
     return replace(
         result,
-        one_line_conclusion=_sanitize(result.one_line_conclusion),
-        business_overview=_sanitize(result.business_overview),
-        operating_performance=_sanitize(result.operating_performance),
-        profitability_quality=_sanitize(result.profitability_quality),
-        cashflow_quality=_sanitize(result.cashflow_quality),
-        growth_and_industry=_sanitize(result.growth_and_industry),
-        major_risks=_sanitize(result.major_risks),
+        one_line_conclusion=_quality_gate_text(result.one_line_conclusion),
+        business_overview=_quality_gate_text(result.business_overview),
+        operating_performance=_quality_gate_text(result.operating_performance),
+        profitability_quality=_quality_gate_text(result.profitability_quality),
+        cashflow_quality=_quality_gate_text(result.cashflow_quality),
+        growth_and_industry=_quality_gate_text(result.growth_and_industry),
+        major_risks=_quality_gate_text(result.major_risks),
     )
+
+
+def _local_refine(result: ResearchResult) -> ResearchResult:
+    return _quality_gate_result(result)
 
 
 def refine_research_result(result: ResearchResult, query: str) -> ResearchResult:
@@ -120,8 +131,7 @@ def refine_research_result(result: ResearchResult, query: str) -> ResearchResult
         "limitations": result.limitations,
     }
     user_prompt = f"""请润色以下研究输出，增强逻辑与可读性，保持事实不变：\n{json.dumps(payload, ensure_ascii=False)}\n
-输出 JSON 字段：
-one_line_conclusion, business_overview, operating_performance, profitability_quality, cashflow_quality, growth_and_industry, major_risks
+输出 JSON 字段：one_line_conclusion, business_overview, operating_performance, profitability_quality, cashflow_quality, growth_and_industry, major_risks
 """
     try:
         client = OpenAI(api_key=api_key, base_url=base_url)
@@ -134,16 +144,20 @@ one_line_conclusion, business_overview, operating_performance, profitability_qua
             ],
         )
         data = _extract_json(content)
-        return replace(
+        refined = replace(
             result,
-            one_line_conclusion=_sanitize(_as_text(data.get("one_line_conclusion"), result.one_line_conclusion)),
-            business_overview=_sanitize(_as_text(data.get("business_overview"), result.business_overview)),
-            operating_performance=_sanitize(_as_text(data.get("operating_performance"), result.operating_performance)),
-            profitability_quality=_sanitize(_as_text(data.get("profitability_quality"), result.profitability_quality)),
-            cashflow_quality=_sanitize(_as_text(data.get("cashflow_quality"), result.cashflow_quality)),
-            growth_and_industry=_sanitize(_as_text(data.get("growth_and_industry"), result.growth_and_industry)),
-            major_risks=_sanitize(_as_text(data.get("major_risks"), result.major_risks)),
-            source_notes=[*result.source_notes, SourceNote(source_type="模型推理", title="research_skill", detail=f"润色模型：{model}")],
+            one_line_conclusion=_as_text(data.get("one_line_conclusion"), result.one_line_conclusion),
+            business_overview=_as_text(data.get("business_overview"), result.business_overview),
+            operating_performance=_as_text(data.get("operating_performance"), result.operating_performance),
+            profitability_quality=_as_text(data.get("profitability_quality"), result.profitability_quality),
+            cashflow_quality=_as_text(data.get("cashflow_quality"), result.cashflow_quality),
+            growth_and_industry=_as_text(data.get("growth_and_industry"), result.growth_and_industry),
+            major_risks=_as_text(data.get("major_risks"), result.major_risks),
+            source_notes=[
+                *result.source_notes,
+                SourceNote(source_type="模型推理", title="research_skill", detail=f"润色模型：{model}"),
+            ],
         )
+        return _quality_gate_result(refined)
     except Exception:
         return _local_refine(result)

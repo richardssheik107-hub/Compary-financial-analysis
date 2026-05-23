@@ -28,6 +28,7 @@ def _build_research_markdown(result: ResearchResult) -> str:
 
     tracking_lines = [f"- {item}" for item in result.tracking_checklist] or ["- 暂无后续跟踪项"]
     limitation_lines = [f"- {item}" for item in result.limitations] or ["- 暂无额外限制说明"]
+    evidence_lines = [f"- {k}: {' / '.join(v)}" for k, v in (result.evidence_by_section or {}).items()] or ["- 暂无证据绑定"]
 
     return "\n".join(
         [
@@ -65,12 +66,16 @@ def _build_research_markdown(result: ResearchResult) -> str:
             f"- matched_files: {int(result.source_summary.get('matched_files', 0))}",
             f"- pdf_scanned: {int(result.source_summary.get('pdf_scanned', 0))}",
             f"- pdf_empty: {int(result.source_summary.get('pdf_empty', 0))}",
+            f"- matched_titles: {', '.join(result.source_summary.get('matched_titles', [])) or '无'}",
             "",
             "## 后续跟踪清单",
             *tracking_lines,
             "",
             "## 依据来源",
             *source_lines,
+            "",
+            "## 证据绑定",
+            *evidence_lines,
             "",
             "## 限制说明",
             *limitation_lines,
@@ -242,6 +247,10 @@ def _render_research_report(result: ResearchResult) -> None:
         rows = [{"来源类型": note.source_type, "标题": note.title, "说明": note.detail} for note in result.source_notes]
         st.markdown('<p class="section-title">依据来源</p>', unsafe_allow_html=True)
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    if result.evidence_by_section:
+        ev_rows = [{"报告段落": k, "证据类型": " / ".join(v)} for k, v in result.evidence_by_section.items()]
+        st.markdown('<p class="section-title">证据绑定</p>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
     _render_research_charts(result)
     summary_rows = [
         {"资料类型": "reports", "命中数量": int(result.source_summary.get("reports", 0))},
@@ -255,6 +264,13 @@ def _render_research_report(result: ResearchResult) -> None:
     ]
     st.markdown('<p class="section-title">资料命中概览</p>', unsafe_allow_html=True)
     st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+    matched_titles = [str(x) for x in (result.source_summary.get("matched_titles") or []) if str(x).strip()]
+    if matched_titles:
+        st.markdown('<p class="section-title">命中资料明细</p>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="custom-card"><p class="card-body">' + "；".join(escape(x) for x in matched_titles) + "</p></div>",
+            unsafe_allow_html=True,
+        )
     if int(result.source_summary.get("pdf_scanned", 0)) > 0 and int(result.source_summary.get("pdf_empty", 0)) > 0:
         st.warning("检测到部分 PDF 无法提取文本（常见于扫描版 PDF），建议补充 txt/md 摘要或可复制文本版 PDF。")
     if result.limitations:
@@ -466,11 +482,23 @@ def _run_query(query: str) -> None:
     if agent_result.comparison:
         _render_compare_view(agent_result.comparison)
         with st.spinner("正在生成深度研究报告..."):
-            _render_research_report(run_company_research_agent(query))
+            _render_research_report(
+                run_company_research_agent(
+                    query,
+                    context_company_name=context.company_name,
+                    context_stock_code=context.stock_code,
+                )
+            )
     elif snapshot.get("found") and agent_result.analysis is not None:
         _render_analysis(snapshot, agent_result.analysis)
         with st.spinner("正在生成深度研究报告..."):
-            _render_research_report(run_company_research_agent(query))
+            _render_research_report(
+                run_company_research_agent(
+                    query,
+                    context_company_name=context.company_name,
+                    context_stock_code=context.stock_code,
+                )
+            )
     else:
         st.error(snapshot.get("data_warning") or "未识别到有效公司。")
 

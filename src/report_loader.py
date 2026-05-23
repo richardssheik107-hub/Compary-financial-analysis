@@ -130,6 +130,7 @@ def load_research_documents(company_name: str, stock_code: str) -> tuple[list[Re
         "matched_files": int(report_stats["matched"] + company_stats["matched"] + industry_stats["matched"]),
         "pdf_scanned": int(report_stats["pdf_scanned"] + company_stats["pdf_scanned"] + industry_stats["pdf_scanned"]),
         "pdf_empty": int(report_stats["pdf_empty"] + company_stats["pdf_empty"] + industry_stats["pdf_empty"]),
+        "matched_titles": [doc.title for doc in all_docs[:8]],
     }
     return all_docs, summary
 
