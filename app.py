@@ -13,8 +13,61 @@ from src.agent import run_financial_agent
 from src.context_store import ConversationContext, context_from_state
 from src.data_service import build_company_snapshot
 from src.models import AnalysisResult
+from src.research_agent import run_company_research_agent
+from src.research_models import ResearchResult
 
 load_dotenv()
+
+
+def _build_research_markdown(result: ResearchResult) -> str:
+    source_lines = []
+    for note in result.source_notes:
+        source_lines.append(f"- {note.source_type} | {note.title} | {note.detail}")
+    if not source_lines:
+        source_lines.append("- 暂无来源记录")
+
+    tracking_lines = [f"- {item}" for item in result.tracking_checklist] or ["- 暂无后续跟踪项"]
+    limitation_lines = [f"- {item}" for item in result.limitations] or ["- 暂无额外限制说明"]
+
+    return "\n".join(
+        [
+            f"# {result.title}",
+            "",
+            "## 一句话结论",
+            result.one_line_conclusion,
+            "",
+            "## 公司是做什么的",
+            result.business_overview,
+            "",
+            "## 近年经营表现",
+            result.operating_performance,
+            "",
+            "## 盈利质量",
+            result.profitability_quality,
+            "",
+            "## 现金流质量",
+            result.cashflow_quality,
+            "",
+            "## 成长性与行业位置",
+            result.growth_and_industry,
+            "",
+            "## 主要风险",
+            result.major_risks,
+            "",
+            f"## 可信度\n{result.confidence_score}/100",
+            "",
+            "## 后续跟踪清单",
+            *tracking_lines,
+            "",
+            "## 依据来源",
+            *source_lines,
+            "",
+            "## 限制说明",
+            *limitation_lines,
+            "",
+            "> 免责声明：本内容仅用于公开信息解读与学习参考，不构成投资建议。",
+        ]
+    )
 
 
 def apply_styles() -> None:
@@ -156,6 +209,38 @@ def _render_metrics_table(snapshot: dict) -> None:
     metrics = snapshot.get("financial_metrics", {})
     rows = [("报告期", metrics.get("report_period")), ("营业收入", metrics.get("revenue")), ("净利润", metrics.get("net_profit")), ("经营现金流", metrics.get("operating_cash_flow")), ("营收同比", metrics.get("revenue_yoy")), ("净利润同比", metrics.get("net_profit_yoy"))]
     st.dataframe(pd.DataFrame(rows, columns=["指标", "数值"]).fillna("暂无"), use_container_width=True, hide_index=True)
+
+
+def _render_research_report(result: ResearchResult) -> None:
+    st.markdown('<p class="section-title">深度研究报告</p>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="custom-card"><p class="card-title">{escape(result.title)}</p>'
+        f'<p class="card-body"><strong>一句话结论：</strong>{escape(result.one_line_conclusion)}</p>'
+        f'<p class="card-body"><strong>业务概览：</strong>{escape(result.business_overview)}</p>'
+        f'<p class="card-body"><strong>经营表现：</strong>{escape(result.operating_performance)}</p>'
+        f'<p class="card-body"><strong>盈利质量：</strong>{escape(result.profitability_quality)}</p>'
+        f'<p class="card-body"><strong>现金流质量：</strong>{escape(result.cashflow_quality)}</p>'
+        f'<p class="card-body"><strong>成长与行业：</strong>{escape(result.growth_and_industry)}</p>'
+        f'<p class="card-body"><strong>主要风险：</strong>{escape(result.major_risks)}</p>'
+        f'<p class="card-body"><strong>可信度：</strong>{result.confidence_score}/100</p></div>',
+        unsafe_allow_html=True,
+    )
+    if result.tracking_checklist:
+        checklist = "".join(f"<li>{escape(item)}</li>" for item in result.tracking_checklist)
+        st.markdown(f'<div class="custom-card"><p class="card-title">后续跟踪清单</p><ul class="card-body">{checklist}</ul></div>', unsafe_allow_html=True)
+    if result.source_notes:
+        rows = [{"来源类型": note.source_type, "标题": note.title, "说明": note.detail} for note in result.source_notes]
+        st.markdown('<p class="section-title">依据来源</p>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    if result.limitations:
+        st.info("；".join(result.limitations))
+    st.download_button(
+        "导出研究报告（Markdown）",
+        data=_build_research_markdown(result),
+        file_name="company_research_report.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
 
 
 def _render_analysis(snapshot: dict, result: AnalysisResult) -> None:
@@ -317,8 +402,12 @@ def _run_query(query: str) -> None:
 
     if agent_result.comparison:
         _render_compare_view(agent_result.comparison)
+        with st.spinner("正在生成深度研究报告..."):
+            _render_research_report(run_company_research_agent(query))
     elif snapshot.get("found") and agent_result.analysis is not None:
         _render_analysis(snapshot, agent_result.analysis)
+        with st.spinner("正在生成深度研究报告..."):
+            _render_research_report(run_company_research_agent(query))
     else:
         st.error(snapshot.get("data_warning") or "未识别到有效公司。")
 
@@ -327,15 +416,15 @@ def _run_query(query: str) -> None:
 
 
 def main() -> None:
-    st.set_page_config(page_title="大白话财报", page_icon="📊", layout="wide", initial_sidebar_state="collapsed")
+    st.set_page_config(page_title="上市公司分析AGENT", page_icon="📊", layout="wide", initial_sidebar_state="collapsed")
     apply_styles()
     _init_state()
 
     st.markdown(
         """
         <div class="hero">
-            <h1>大白话财报 - 你的 AI 消费级投研</h1>
-            <p>用自然语言看懂 A 股财报，把复杂的数据翻译成普通人也能判断的经营信号。</p>
+            <h1>上市公司分析AGENT</h1>
+            <p>用自然语言理解上市公司经营状况，结合财务数据与研究资料输出可复盘结论。</p>
         </div>
         """,
         unsafe_allow_html=True,

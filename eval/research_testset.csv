@@ -1,0 +1,11 @@
+case_id,query,expected_route
+R001,贵州茅台整体经营状况怎么样,single_company_research
+R002,宁德时代的增长质量如何,single_company_research
+R003,万科现在主要风险是什么,single_company_research
+R004,平安银行经营是否稳健,single_company_research
+R005,招商银行现金流质量怎么看,single_company_research
+R006,贵州茅台和宁德时代谁的经营质量更好,compare_companies_deep
+R007,平安银行和招商银行哪个更稳,compare_companies_deep
+R008,万科和格力哪个更值得继续研究,compare_companies_deep
+R009,怎么判断一家公司现金流质量好不好,general_business_qa
+R010,利润增长但现金流下降说明什么,general_business_qa

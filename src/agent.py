@@ -52,7 +52,21 @@ def _extract_company_mentions(query: str) -> list[str]:
 
 
 def _has_compare_keyword(normalized: str) -> bool:
-    compare_keywords = ["对比", "比较", "谁更好", "哪个好", "哪个更好", "更稳", "更强", "vs", "versus"]
+    compare_keywords = [
+        "对比",
+        "比较",
+        "谁更好",
+        "谁的",
+        "哪个好",
+        "哪个更好",
+        "哪家更好",
+        "更好",
+        "更稳",
+        "更强",
+        "更值得",
+        "vs",
+        "versus",
+    ]
     return any(k in normalized for k in compare_keywords)
 
 
