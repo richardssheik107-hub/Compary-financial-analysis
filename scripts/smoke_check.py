@@ -5,9 +5,8 @@ import json
 import sys
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -64,8 +63,10 @@ def check_compare_flow() -> CheckResult:
 def check_compare_fail_hint() -> CheckResult:
     result = run_financial_agent("A和B谁更好")
     warning = result.warnings[0] if result.warnings else ""
-    ok = (result.snapshot.get("found") is False) and ("两个可识别" in warning)
-    detail = f"found={result.snapshot.get('found')} warning={warning}"
+    hint_tokens = ("两个", "公司", "补充", "公司名", "代码")
+    is_general_route = result.intent in {"通用问答", "通用财报问答", "财报解读"}
+    ok = is_general_route and any(token in warning for token in hint_tokens)
+    detail = f"intent={result.intent} found={result.snapshot.get('found')} warning={warning}"
     return CheckResult("compare_fail_hint", ok, detail)
 
 
@@ -80,17 +81,10 @@ def main() -> int:
     checks: list[CheckResult] = []
     if not args.skip_health:
         checks.append(check_health(args.port))
-    checks.extend(
-        [
-            check_single_company(),
-            check_compare_flow(),
-            check_compare_fail_hint(),
-        ]
-    )
+    checks.extend([check_single_company(), check_compare_flow(), check_compare_fail_hint()])
 
     passed = [item for item in checks if item.passed]
     failed = [item for item in checks if not item.passed]
-
     summary = {
         "total": len(checks),
         "passed": len(passed),

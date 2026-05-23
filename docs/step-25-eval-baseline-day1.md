@@ -1,41 +1,41 @@
-# Step 25：评测基线落地（Day 1）
+# Step 25：评测体系与版本对比（更新版）
 
 ## 目标
+建立可量化评测体系，用数据驱动 Agent 迭代，而不是靠主观感觉判断“变好没有”。
 
-搭建可量化评测基线，支撑后续文本与路由优化迭代。
+## 评测资产
+1. 测试集：`eval/testset.csv`（20 条，覆盖 single/compare/general）  
+2. 评测脚本：`scripts/eval_runner.py`  
+3. 失败样本：`eval/failed_cases.csv`（每次评测自动更新）
 
-## 本步交付
+## 指标定义
+- `intent_accuracy`：意图识别准确率  
+- `route_success_rate`：路由成功率  
+- `compare_success_rate`：对比分支成功率  
+- `text_quality_pass_rate`：文本质量通过率  
+- `empty_or_error_rate`：空结果或错误率
 
-1. 指标文档  
-- 文件：`eval/metrics.md`  
-- 内容：意图准确率、路由成功率、对比成功率、文本质量通过率、空结果率。
-
-2. 测试集  
-- 文件：`eval/testset.csv`  
-- 规模：20 条（single_company / compare / general 三类）。
-
-3. 评测脚本  
-- 文件：`scripts/eval_runner.py`  
-- 能力：读取测试集、调用 `run_financial_agent`、输出总体与分桶指标、失败样例。
-
-## 基线结果（首次运行）
-
-- total_cases: 20
+## 基线与当前对比
+### Day1 基线
 - intent_accuracy: 70.00%
 - route_success_rate: 85.00%
 - compare_success_rate: 100.00%
 - text_quality_pass_rate: 60.00%
 - empty_or_error_rate: 15.00%
 
-分桶结果：
-- compare: intent 83.33%, route 100.00%, text 100.00%
-- general: intent 83.33%, route 83.33%, text 0.00%
-- single_company: intent 50.00%, route 75.00%, text 75.00%
+### 当前版本（Step 30+）
+- intent_accuracy: 85.00%
+- route_success_rate: 95.00%
+- compare_success_rate: 83.33%
+- text_quality_pass_rate: 95.00%
+- empty_or_error_rate: 5.00%
 
-## 结论
+## 解读
+1. 文本质量和可用性已明显提升（text quality、route、error）。  
+2. compare 成功率仍有边界样本，需要继续优化别名与意图规则。  
+3. 失败样本机制已就位，可持续收敛问题。
 
-1. 对比链路已经稳定（可作为当前项目亮点）。  
-2. 单公司意图识别与通用问答文本质量仍是主要短板。  
-3. 后续优化优先级：  
-- 单公司意图识别（公司名/代码直达识别）  
-- 通用问答文本质量规则（提升 general 桶的 text pass）
+## 后续动作
+1. 结合 `failed_cases.csv` 增量补词表与规则。  
+2. 继续扩展 compare 场景样本，防止“修一处坏一处”。  
+3. 增加多轮上下文测试集，覆盖追问链路。

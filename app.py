@@ -56,6 +56,16 @@ def _build_research_markdown(result: ResearchResult) -> str:
             "",
             f"## 可信度\n{result.confidence_score}/100",
             "",
+            "## 资料命中概览",
+            f"- reports: {int(result.source_summary.get('reports', 0))}",
+            f"- company_info: {int(result.source_summary.get('company_info', 0))}",
+            f"- industry_info: {int(result.source_summary.get('industry_info', 0))}",
+            f"- total: {int(result.source_summary.get('total', 0))}",
+            f"- scanned_files: {int(result.source_summary.get('scanned_files', 0))}",
+            f"- matched_files: {int(result.source_summary.get('matched_files', 0))}",
+            f"- pdf_scanned: {int(result.source_summary.get('pdf_scanned', 0))}",
+            f"- pdf_empty: {int(result.source_summary.get('pdf_empty', 0))}",
+            "",
             "## 后续跟踪清单",
             *tracking_lines,
             "",
@@ -232,6 +242,21 @@ def _render_research_report(result: ResearchResult) -> None:
         rows = [{"来源类型": note.source_type, "标题": note.title, "说明": note.detail} for note in result.source_notes]
         st.markdown('<p class="section-title">依据来源</p>', unsafe_allow_html=True)
         st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    _render_research_charts(result)
+    summary_rows = [
+        {"资料类型": "reports", "命中数量": int(result.source_summary.get("reports", 0))},
+        {"资料类型": "company_info", "命中数量": int(result.source_summary.get("company_info", 0))},
+        {"资料类型": "industry_info", "命中数量": int(result.source_summary.get("industry_info", 0))},
+        {"资料类型": "total", "命中数量": int(result.source_summary.get("total", 0))},
+        {"资料类型": "scanned_files", "命中数量": int(result.source_summary.get("scanned_files", 0))},
+        {"资料类型": "matched_files", "命中数量": int(result.source_summary.get("matched_files", 0))},
+        {"资料类型": "pdf_scanned", "命中数量": int(result.source_summary.get("pdf_scanned", 0))},
+        {"资料类型": "pdf_empty", "命中数量": int(result.source_summary.get("pdf_empty", 0))},
+    ]
+    st.markdown('<p class="section-title">资料命中概览</p>', unsafe_allow_html=True)
+    st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+    if int(result.source_summary.get("pdf_scanned", 0)) > 0 and int(result.source_summary.get("pdf_empty", 0)) > 0:
+        st.warning("检测到部分 PDF 无法提取文本（常见于扫描版 PDF），建议补充 txt/md 摘要或可复制文本版 PDF。")
     if result.limitations:
         st.info("；".join(result.limitations))
     st.download_button(
@@ -241,6 +266,44 @@ def _render_research_report(result: ResearchResult) -> None:
         mime="text/markdown",
         use_container_width=True,
     )
+
+
+def _render_research_charts(result: ResearchResult) -> None:
+    if result.key_metrics:
+        company = str(result.key_metrics.get("company") or "目标公司")
+        labels = ["营业收入(亿元)", "净利润(亿元)", "经营现金流(亿元)"]
+        values = [
+            result.key_metrics.get("revenue"),
+            result.key_metrics.get("net_profit"),
+            result.key_metrics.get("operating_cash_flow"),
+        ]
+        points = [(l, float(v)) for l, v in zip(labels, values) if isinstance(v, (int, float))]
+        if points:
+            st.markdown('<p class="section-title">研究图表：经营质量三指标</p>', unsafe_allow_html=True)
+            fig = go.Figure(
+                data=[
+                    go.Bar(
+                        x=[p[0] for p in points],
+                        y=[p[1] for p in points],
+                        marker_color=["#2D8CF0", "#13A579", "#F59E0B"][: len(points)],
+                        name=company,
+                    )
+                ]
+            )
+            fig.update_layout(height=320, margin=dict(l=20, r=20, t=20, b=20), showlegend=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+    if result.compare_metrics:
+        rows = [row for row in result.compare_metrics if isinstance(row.get("a"), (int, float)) and isinstance(row.get("b"), (int, float))]
+        if rows:
+            st.markdown('<p class="section-title">研究图表：双公司核心指标对比</p>', unsafe_allow_html=True)
+            company_a = str(rows[0].get("company_a") or "公司A")
+            company_b = str(rows[0].get("company_b") or "公司B")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(name=company_a, x=[r["label"] for r in rows], y=[r["a"] for r in rows], marker_color="#2D8CF0"))
+            fig.add_trace(go.Bar(name=company_b, x=[r["label"] for r in rows], y=[r["b"] for r in rows], marker_color="#13A579"))
+            fig.update_layout(height=340, barmode="group", margin=dict(l=20, r=20, t=20, b=20))
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def _render_analysis(snapshot: dict, result: AnalysisResult) -> None:

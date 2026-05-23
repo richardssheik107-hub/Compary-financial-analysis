@@ -31,6 +31,7 @@ class CompanyResearchContext:
     risks: list[str] = field(default_factory=list)
     source_notes: list[SourceNote] = field(default_factory=list)
     data_quality: dict = field(default_factory=dict)
+    source_summary: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -46,8 +47,11 @@ class ResearchResult:
     major_risks: str
     tracking_checklist: list[str]
     source_notes: list[SourceNote]
+    source_summary: dict
     confidence_score: int
     limitations: list[str]
+    key_metrics: dict = field(default_factory=dict)
+    compare_metrics: list[dict] = field(default_factory=list)
 
     def to_public_dict(self) -> dict:
         return asdict(self)

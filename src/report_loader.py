@@ -8,7 +8,9 @@ from src.research_models import ResearchDocument, SourceNote
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / "data" / "reports"
-SUPPORTED_SUFFIXES = {".txt", ".md"}
+COMPANY_INFO_DIR = ROOT / "data" / "company_info"
+INDUSTRY_INFO_DIR = ROOT / "data" / "industry_info"
+SUPPORTED_SUFFIXES = {".txt", ".md", ".pdf"}
 
 
 def _normalize(text: str) -> str:
@@ -34,6 +36,33 @@ def _read_text_file(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
+def _read_pdf_file(path: Path) -> str:
+    try:
+        from pypdf import PdfReader  # type: ignore
+    except Exception:
+        return ""
+    try:
+        reader = PdfReader(str(path))
+    except Exception:
+        return ""
+    chunks: list[str] = []
+    for page in reader.pages[:30]:
+        try:
+            text = page.extract_text() or ""
+        except Exception:
+            text = ""
+        text = text.strip()
+        if text:
+            chunks.append(text)
+    return "\n".join(chunks)
+
+
+def _read_content(path: Path) -> str:
+    if path.suffix.lower() == ".pdf":
+        return _read_pdf_file(path)
+    return _read_text_file(path)
+
+
 def _matches_company(path: Path, content: str, company_name: str, stock_code: str) -> bool:
     haystack = _normalize(path.name + "\n" + content[:3000])
     names = [_normalize(company_name), _normalize(stock_code)]
@@ -43,30 +72,66 @@ def _matches_company(path: Path, content: str, company_name: str, stock_code: st
     return any(item and item in haystack for item in names)
 
 
-def load_company_documents(company_name: str, stock_code: str) -> list[ResearchDocument]:
-    if not REPORT_DIR.exists():
-        return []
-
-    documents: list[ResearchDocument] = []
-    for path in REPORT_DIR.rglob("*"):
+def _scan_dir_documents(
+    base_dir: Path, company_name: str, stock_code: str, fallback_source_type: str
+) -> tuple[list[ResearchDocument], dict]:
+    if not base_dir.exists():
+        return [], {"scanned": 0, "matched": 0, "pdf_scanned": 0, "pdf_empty": 0}
+    results: list[ResearchDocument] = []
+    stats = {"scanned": 0, "matched": 0, "pdf_scanned": 0, "pdf_empty": 0}
+    for path in base_dir.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in SUPPORTED_SUFFIXES:
             continue
         if path.name.lower() == "readme.md":
             continue
-        content = _read_text_file(path).strip()
+        stats["scanned"] += 1
+        if path.suffix.lower() == ".pdf":
+            stats["pdf_scanned"] += 1
+        content = _read_content(path).strip()
         if not content:
+            if path.suffix.lower() == ".pdf":
+                stats["pdf_empty"] += 1
             continue
         if not _matches_company(path, content, company_name, stock_code):
             continue
-        documents.append(
+        stats["matched"] += 1
+        source_type = _guess_source_type(path, content)
+        if source_type == "本地资料":
+            source_type = fallback_source_type
+        results.append(
             ResearchDocument(
                 title=path.stem,
-                source_type=_guess_source_type(path, content),
+                source_type=source_type,
                 content=content[:8000],
                 file_path=str(path),
             )
         )
-    return documents
+    return results, stats
+
+
+def load_company_documents(company_name: str, stock_code: str) -> list[ResearchDocument]:
+    if not REPORT_DIR.exists():
+        return []
+    docs, _ = _scan_dir_documents(REPORT_DIR, company_name, stock_code, "本地资料")
+    return docs
+
+
+def load_research_documents(company_name: str, stock_code: str) -> tuple[list[ResearchDocument], dict]:
+    report_docs, report_stats = _scan_dir_documents(REPORT_DIR, company_name, stock_code, "本地资料")
+    company_docs, company_stats = _scan_dir_documents(COMPANY_INFO_DIR, company_name, stock_code, "公司资料")
+    industry_docs, industry_stats = _scan_dir_documents(INDUSTRY_INFO_DIR, company_name, stock_code, "行业资料")
+    all_docs = [*report_docs, *company_docs, *industry_docs]
+    summary = {
+        "reports": len(report_docs),
+        "company_info": len(company_docs),
+        "industry_info": len(industry_docs),
+        "total": len(all_docs),
+        "scanned_files": int(report_stats["scanned"] + company_stats["scanned"] + industry_stats["scanned"]),
+        "matched_files": int(report_stats["matched"] + company_stats["matched"] + industry_stats["matched"]),
+        "pdf_scanned": int(report_stats["pdf_scanned"] + company_stats["pdf_scanned"] + industry_stats["pdf_scanned"]),
+        "pdf_empty": int(report_stats["pdf_empty"] + company_stats["pdf_empty"] + industry_stats["pdf_empty"]),
+    }
+    return all_docs, summary
 
 
 def _query_terms(query: str) -> list[str]:
@@ -76,7 +141,9 @@ def _query_terms(query: str) -> list[str]:
     return [t for t in terms if t not in stopwords]
 
 
-def retrieve_relevant_passages(documents: list[ResearchDocument], query: str, top_k: int = 8) -> list[tuple[ResearchDocument, str]]:
+def retrieve_relevant_passages(
+    documents: list[ResearchDocument], query: str, top_k: int = 8
+) -> list[tuple[ResearchDocument, str]]:
     if not documents:
         return []
     terms = _query_terms(query)
@@ -115,6 +182,6 @@ def unsupported_source_note() -> SourceNote:
     return SourceNote(
         source_type="资料边界",
         title="本地资料加载说明",
-        detail="当前版本优先支持 txt/md；PDF 可在下一步接入解析。",
+        detail="当前版本支持 txt/md/pdf。若 PDF 为扫描版，可能提取不到文本。",
         file_path=str(REPORT_DIR),
     )

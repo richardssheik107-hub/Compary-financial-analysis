@@ -4,3 +4,4 @@ plotly>=5.20.0
 python-dotenv>=1.0.1
 openai>=1.30.0
 akshare>=1.13.0
+pypdf>=4.2.0
