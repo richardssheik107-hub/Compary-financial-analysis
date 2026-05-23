@@ -106,6 +106,9 @@ def _local_refine(result: ResearchResult) -> ResearchResult:
 
 
 def refine_research_result(result: ResearchResult, query: str) -> ResearchResult:
+    if (os.getenv("RESEARCH_ENABLE_SKILL", "1") or "1").strip() == "0":
+        return result
+
     api_key = os.getenv("OPENAI_API_KEY")
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     base_url = os.getenv("OPENAI_BASE_URL") or None

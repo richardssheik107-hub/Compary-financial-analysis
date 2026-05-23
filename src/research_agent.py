@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import Any
 
@@ -67,13 +68,24 @@ def build_company_research_context(query_or_code: str, query: str = "") -> Compa
     snapshot = build_company_snapshot(query_or_code)
     company_name = str(snapshot.get("company_name") or query_or_code)
     stock_code = str(snapshot.get("stock_code") or "")
-    documents, source_summary = load_research_documents(company_name, stock_code)
-    summaries = summarize_company_sources(documents, query or query_or_code)
+    enable_rag = (os.getenv("RESEARCH_ENABLE_RAG", "1") or "1").strip() != "0"
+    if enable_rag:
+        documents, source_summary = load_research_documents(company_name, stock_code)
+        summaries = summarize_company_sources(documents, query or query_or_code)
+    else:
+        documents = []
+        source_summary = {"reports": 0, "company_info": 0, "industry_info": 0, "total": 0}
+        summaries = {
+            "business_segments": [],
+            "management_discussion": [],
+            "research_views": [],
+            "risks": [],
+        }
 
     source_notes = [
         SourceNote(source_type="财务数据", title="AKShare/本地快照", detail=str(snapshot.get("data_source", "unknown"))),
         *_source_notes_from_documents(documents),
-        unsupported_source_note(),
+        *( [unsupported_source_note()] if enable_rag else [] ),
     ]
     company_profile = " ".join(summaries["business_segments"][:2]).strip() or f"{company_name} 当前优先基于财务摘要进行研究。"
 
@@ -271,6 +283,10 @@ def run_company_research_agent(
     context_company_name: str = "",
     context_stock_code: str = "",
 ) -> ResearchResult:
+    mentions = _extract_company_mentions(query)
+    if len(mentions) <= 1 and any(token in query for token in ["和谁比", "跟谁比", "和谁比较", "跟谁比较"]):
+        return general_business_qa(query)
+
     base = run_financial_agent(query, context_company_name=context_company_name, context_stock_code=context_stock_code)
     if base.snapshot.get("stock_code") == "N/A":
         mentions = _extract_company_mentions(base.resolved_query or query)
