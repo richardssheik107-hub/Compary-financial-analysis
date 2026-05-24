@@ -325,9 +325,9 @@ def _render_research_charts(result: ResearchResult) -> None:
 def _render_analysis(snapshot: dict, result: AnalysisResult) -> None:
     st.success(f"公司：{snapshot.get('company_name')}（{snapshot.get('stock_code')}）")
     if snapshot.get("data_warning"):
-        st.warning(snapshot.get("data_warning"))
+        st.warning(_friendly_data_warning(str(snapshot.get("data_warning"))))
     if snapshot.get("price_warning"):
-        st.warning(snapshot.get("price_warning"))
+        st.warning(_friendly_data_warning(str(snapshot.get("price_warning"))))
     left, right = st.columns([7, 3], gap="large")
     with left:
         st.markdown('<p class="section-title">白话解读</p>', unsafe_allow_html=True)
@@ -363,7 +363,40 @@ def _snapshot_for_compare_company(entry: dict) -> dict:
         snapshot = build_company_snapshot(name)
         if snapshot.get("found"):
             return snapshot
+    return {"found": False, "company_name": name or code or "鏈煡鍏徃", "daily_prices": [], "financial_metrics": {}}
+
+
+def _friendly_data_warning(raw: str) -> str:
+    text = (raw or "").strip()
+    if "AKShare" in text and ("失败" in text or "澶辫触" in text):
+        return f"实时数据源本次请求未成功，系统已自动切换到兜底数据，页面仍可继续分析。{text}"
+    if "日线" in text and ("失败" in text or "澶辫触" in text):
+        return f"K线数据暂时不可用，已跳过走势图展示，不影响文本分析。{text}"
+    return text
+
+
+def _snapshot_for_compare_company(entry: dict) -> dict:
+    code = str(entry.get("code") or "").strip()
+    name = str(entry.get("name") or "").strip()
+    if code:
+        snapshot = build_company_snapshot(code)
+        if snapshot.get("found"):
+            return snapshot
+    if name:
+        snapshot = build_company_snapshot(name)
+        if snapshot.get("found"):
+            return snapshot
     return {"found": False, "company_name": name or code or "未知公司", "daily_prices": [], "financial_metrics": {}}
+
+
+def _friendly_data_warning(raw: str) -> str:
+    text = (raw or "").strip()
+    lower = text.lower()
+    if "akshare" in lower and ("失败" in text or "failure" in lower):
+        return f"实时数据源本次请求失败，系统已自动切换到兜底数据，页面可继续使用。{text}"
+    if ("日线" in text or "k线" in lower) and ("失败" in text or "failure" in lower):
+        return f"K线数据暂时不可用，已跳过走势图展示，不影响文本分析。{text}"
+    return text
 
 
 def _render_compare_view(comparison: dict) -> None:

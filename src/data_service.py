@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from functools import lru_cache
 import re
+import time
 from typing import Any
 
 import pandas as pd
@@ -207,13 +208,23 @@ def _fetch_akshare_metrics(stock_code: str) -> dict[str, Any]:
 
 
 def _fetch_akshare_metrics_with_retry(stock_code: str) -> dict[str, Any]:
-    try:
-        return _fetch_akshare_metrics(stock_code)
-    except Exception as exc:
-        if not is_proxy_error(exc):
-            raise
-        with temporary_disable_proxy():
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
             return _fetch_akshare_metrics(stock_code)
+        except Exception as exc:
+            last_exc = exc
+            if is_proxy_error(exc):
+                with temporary_disable_proxy():
+                    try:
+                        return _fetch_akshare_metrics(stock_code)
+                    except Exception as inner_exc:
+                        last_exc = inner_exc
+            if not _is_transient_akshare_error(last_exc):
+                raise
+            if attempt < 2:
+                time.sleep(0.8 * (2**attempt))
+    raise RuntimeError(f"AKShare metrics retry exhausted: {last_exc}")
 
 
 @lru_cache(maxsize=256)
@@ -294,13 +305,41 @@ def _fetch_akshare_daily_prices(stock_code: str) -> tuple[dict[str, Any], ...]:
 
 
 def _fetch_akshare_daily_prices_with_retry(stock_code: str) -> tuple[dict[str, Any], ...]:
-    try:
-        return _fetch_akshare_daily_prices(stock_code)
-    except Exception as exc:
-        if not is_proxy_error(exc):
-            raise
-        with temporary_disable_proxy():
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
             return _fetch_akshare_daily_prices(stock_code)
+        except Exception as exc:
+            last_exc = exc
+            if is_proxy_error(exc):
+                with temporary_disable_proxy():
+                    try:
+                        return _fetch_akshare_daily_prices(stock_code)
+                    except Exception as inner_exc:
+                        last_exc = inner_exc
+            if not _is_transient_akshare_error(last_exc):
+                raise
+            if attempt < 2:
+                time.sleep(0.8 * (2**attempt))
+    raise RuntimeError(f"AKShare daily retry exhausted: {last_exc}")
+
+
+def _is_transient_akshare_error(exc: Exception) -> bool:
+    text = str(exc).lower()
+    retry_signals = (
+        "timeout",
+        "timed out",
+        "temporarily unavailable",
+        "connection aborted",
+        "connection reset",
+        "max retries exceeded",
+        "503",
+        "502",
+        "504",
+        "rate limit",
+        "too many requests",
+    )
+    return any(signal in text for signal in retry_signals)
 
 
 def build_company_snapshot(user_query: str) -> dict[str, Any]:
