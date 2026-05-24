@@ -227,6 +227,56 @@ def _render_metrics_table(snapshot: dict) -> None:
 
 
 def _render_research_report(result: ResearchResult) -> None:
+    # 用户态简洁展示：隐藏资料命中概览/证据细节，统一在结尾展示参考来源与后台数据
+    st.markdown('<p class="section-title">深度研究报告</p>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="custom-card"><p class="card-title">{escape(result.title)}</p>'
+        f'<p class="card-body"><strong>一句话结论：</strong>{escape(result.one_line_conclusion)}</p>'
+        f'<p class="card-body"><strong>业务概览：</strong>{escape(result.business_overview)}</p>'
+        f'<p class="card-body"><strong>经营表现：</strong>{escape(result.operating_performance)}</p>'
+        f'<p class="card-body"><strong>盈利质量：</strong>{escape(result.profitability_quality)}</p>'
+        f'<p class="card-body"><strong>现金流质量：</strong>{escape(result.cashflow_quality)}</p>'
+        f'<p class="card-body"><strong>成长与行业：</strong>{escape(result.growth_and_industry)}</p>'
+        f'<p class="card-body"><strong>主要风险：</strong>{escape(result.major_risks)}</p>'
+        f'<p class="card-body"><strong>可信度：</strong>{result.confidence_score}/100</p></div>',
+        unsafe_allow_html=True,
+    )
+    if result.tracking_checklist:
+        checklist = "".join(f"<li>{escape(item)}</li>" for item in result.tracking_checklist)
+        st.markdown(
+            f'<div class="custom-card"><p class="card-title">后续跟踪清单</p><ul class="card-body">{checklist}</ul></div>',
+            unsafe_allow_html=True,
+        )
+    _render_research_charts(result)
+    with st.expander("参考来源"):
+        summary_rows = [
+            {"字段": "reports", "值": int(result.source_summary.get("reports", 0))},
+            {"字段": "company_info", "值": int(result.source_summary.get("company_info", 0))},
+            {"字段": "industry_info", "值": int(result.source_summary.get("industry_info", 0))},
+            {"字段": "total", "值": int(result.source_summary.get("total", 0))},
+            {"字段": "scanned_files", "值": int(result.source_summary.get("scanned_files", 0))},
+            {"字段": "matched_files", "值": int(result.source_summary.get("matched_files", 0))},
+            {"字段": "pdf_scanned", "值": int(result.source_summary.get("pdf_scanned", 0))},
+            {"字段": "pdf_empty", "值": int(result.source_summary.get("pdf_empty", 0))},
+            {"字段": "confidence_score", "值": int(result.confidence_score)},
+        ]
+        st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+        if result.source_notes:
+            rows = [{"source_type": note.source_type, "title": note.title, "detail": note.detail} for note in result.source_notes]
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        if result.evidence_by_section:
+            ev_rows = [{"section": k, "evidence_types": " / ".join(v)} for k, v in result.evidence_by_section.items()]
+            st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
+    if result.limitations:
+        st.info("；".join(result.limitations))
+    st.download_button(
+        "导出研究报告（Markdown）",
+        data=_build_research_markdown(result),
+        file_name="company_research_report.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+    return
     st.markdown('<p class="section-title">深度研究报告</p>', unsafe_allow_html=True)
     st.markdown(
         f'<div class="custom-card"><p class="card-title">{escape(result.title)}</p>'
@@ -535,7 +585,8 @@ def _run_query(query: str) -> None:
     else:
         st.error(snapshot.get("data_warning") or "未识别到有效公司。")
 
-    _render_agent_steps()
+    # 前端隐藏代理执行步骤
+    # _render_agent_steps()
     _render_suggested_questions()
 
 
