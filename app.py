@@ -248,7 +248,7 @@ def _render_research_report(result: ResearchResult) -> None:
             unsafe_allow_html=True,
         )
     _render_research_charts(result)
-    with st.expander("参考来源"):
+    with st.expander("参考来源", expanded=False):
         summary_rows = [
             {"字段": "reports", "值": int(result.source_summary.get("reports", 0))},
             {"字段": "company_info", "值": int(result.source_summary.get("company_info", 0))},
@@ -267,6 +267,12 @@ def _render_research_report(result: ResearchResult) -> None:
         if result.evidence_by_section:
             ev_rows = [{"section": k, "evidence_types": " / ".join(v)} for k, v in result.evidence_by_section.items()]
             st.dataframe(pd.DataFrame(ev_rows), use_container_width=True, hide_index=True)
+        matched_titles = [str(x) for x in (result.source_summary.get("matched_titles") or []) if str(x).strip()]
+        if matched_titles:
+            st.markdown(
+                '<div class="custom-card"><p class="card-body">' + "；".join(escape(x) for x in matched_titles) + "</p></div>",
+                unsafe_allow_html=True,
+            )
     if result.limitations:
         st.info("；".join(result.limitations))
     st.download_button(
