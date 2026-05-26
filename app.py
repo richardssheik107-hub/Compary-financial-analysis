@@ -90,33 +90,54 @@ def apply_styles() -> None:
         """
         <style>
         #MainMenu, footer, header { visibility: hidden; height: 0; }
-        html, body, [data-testid="stAppViewContainer"], .stApp { background: #F5F7FA; }
+        html, body, [data-testid="stAppViewContainer"], .stApp {
+            background: radial-gradient(circle at 78% 16%, #2f4524 0%, #173f30 32%, #0f2f24 64%, #0a221a 100%);
+            color: #F3EFD7;
+        }
         .block-container { max-width: 1180px; padding-top: 2rem; padding-bottom: 2.5rem; }
         .hero { text-align: center; margin: 0.2rem auto 1.2rem; }
-        .hero h1 { color: #172033; font-size: 2.1rem; font-weight: 760; margin: 0 0 0.45rem; letter-spacing: 0; }
-        .hero p { color: #687385; font-size: 0.98rem; line-height: 1.8; margin: 0; }
+        .hero h1 { color: #F6F2DD; font-size: 2.1rem; font-weight: 760; margin: 0 0 0.45rem; letter-spacing: 0; }
+        .hero p { color: #ECE5C5; font-size: 0.98rem; line-height: 1.8; margin: 0; }
         .custom-card {
-            background: #FFFFFF; border: 1px solid rgba(226, 232, 240, 0.86);
+            background: rgba(20, 39, 31, 0.72); border: 1px solid rgba(201, 182, 120, 0.42);
             border-radius: 12px; padding: 16px 18px; margin-bottom: 0.9rem;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
         }
-        .card-title { color: #172033; font-size: 1rem; font-weight: 720; margin: 0 0 0.5rem; }
-        .card-body { color: #334155; font-size: 0.96rem; line-height: 1.8; margin: 0; }
-        .section-title { color: #172033; font-size: 1.05rem; font-weight: 720; margin: 0.2rem 0 0.7rem; }
-        .context-main { color: #1F2A3D; font-weight: 700; font-size: 1.55rem; }
-        .risk-note { background: #FFF8E8; border: 1px solid #F4D99A; color: #72520A; border-radius: 12px; padding: 0.9rem 1rem; line-height: 1.75; font-weight: 620; }
+        .card-title { color: #F7F2DD; font-size: 1rem; font-weight: 730; margin: 0 0 0.5rem; }
+        .card-body { color: #F1EBD2; font-size: 0.96rem; line-height: 1.8; margin: 0; }
+        .section-title { color: #F7F2DD; font-size: 1.05rem; font-weight: 730; margin: 0.2rem 0 0.7rem; }
+        .context-main { color: #F7F2DD; font-weight: 700; font-size: 1.55rem; }
+        .risk-note { background: rgba(85, 70, 25, 0.22); border: 1px solid rgba(214, 190, 123, 0.58); color: #F3E9C2; border-radius: 12px; padding: 0.9rem 1rem; line-height: 1.75; font-weight: 620; }
         div[data-testid="stForm"] {
-            background: #FFFFFF; border: 1px solid rgba(226, 232, 240, 0.86);
-            border-radius: 12px; padding: 18px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            background: rgba(17, 36, 29, 0.78); border: 1px solid rgba(201, 182, 120, 0.42);
+            border-radius: 12px; padding: 18px; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.24);
         }
         div[data-testid="stButton"] button, div[data-testid="stFormSubmitButton"] button {
             border-radius: 12px; min-height: 3rem; font-weight: 720; border: 0;
-            background: linear-gradient(135deg, #2D8CF0 0%, #1677FF 100%); color: #FFFFFF;
-            box-shadow: 0 6px 14px rgba(45, 140, 240, 0.22);
+            background: linear-gradient(135deg, #2D8CF0 0%, #1677FF 100%); color: #F8F4E2;
+            box-shadow: 0 6px 14px rgba(45, 140, 240, 0.28);
+        }
+        div[data-testid="stDownloadButton"] button {
+            border-radius: 12px; min-height: 3rem; font-weight: 720; border: 0;
+            background: linear-gradient(135deg, #1D9D5B 0%, #147E48 100%);
+            color: #F8F4E2;
+            box-shadow: 0 6px 14px rgba(20, 126, 72, 0.32);
         }
         div[data-testid="stDataFrame"], div[data-testid="stPlotlyChart"], div[data-testid="stExpander"] {
-            border: 1px solid #E5EBF3; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+            border: 1px solid rgba(201, 182, 120, 0.36); border-radius: 12px; overflow: hidden; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.20);
         }
+        label, p, span, li, small, h1, h2, h3, h4, h5, h6 { color: #F3EFD7 !important; }
+        div[data-testid="stTextInput"] label,
+        div[data-testid="stTextArea"] label,
+        div[data-testid="stSelectbox"] label { color: #F3EFD7 !important; font-weight: 650; }
+        div[data-testid="stTextInput"] input,
+        div[data-testid="stTextArea"] textarea {
+            color: #F7F2DD !important;
+            background: rgba(11, 27, 22, 0.90) !important;
+            border: 1px solid rgba(202, 184, 124, 0.45) !important;
+        }
+        div[data-testid="stTextInput"] input::placeholder,
+        div[data-testid="stTextArea"] textarea::placeholder { color: #DDD4B0 !important; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -175,12 +196,12 @@ def _build_price_chart(snapshot: dict) -> go.Figure:
         height=360,
         margin=dict(l=12, r=12, t=34, b=8),
         xaxis=dict(showgrid=False, rangeslider=dict(visible=False), type="category", nticks=8),
-        yaxis=dict(title=dict(text="价格"), gridcolor="#EEF2F7"),
+        yaxis=dict(title=dict(text="价格"), gridcolor="#D8CFAE"),
         legend=dict(orientation="h", yanchor="bottom", y=1.04, xanchor="left", x=0),
         hovermode="x unified",
         showlegend=True,
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="#F4EED8",
+        plot_bgcolor="#F4EED8",
     )
     return fig
 
